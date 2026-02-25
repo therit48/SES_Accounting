@@ -1,0 +1,13 @@
+# Ignore build and installer folders
+dist/
+build/
+Output/
+*.spec
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore databases and backups
+*.db
+*.zip
