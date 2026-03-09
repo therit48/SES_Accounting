@@ -84,3 +84,46 @@ class Utils:
             base_path = os.path.abspath(os.path.dirname(sys.argv[0]))
             
         return os.path.join(base_path, "logo.ico")
+    
+    @staticmethod
+    def format_indian_currency(number):
+        """Converts a number to Indian numbering format (Lakhs/Crores)"""
+        if number is None or number == "":
+            return "0.00"
+            
+        try:
+            num = float(number)
+            is_negative = num < 0
+            num = abs(num)
+            
+            # Split into integer and decimal parts (forces 2 decimal places)
+            s = f"{num:.2f}"
+            int_part, dec_part = s.split('.')
+            
+            # If it's less than 1,000, no commas needed
+            if len(int_part) <= 3:
+                result = int_part
+            else:
+                # Grab the last 3 digits
+                last_3 = int_part[-3:]
+                # Grab the rest of the numbers
+                rest = int_part[:-3]
+                
+                # Group the remaining numbers by 2 (Lakhs, Crores, etc.)
+                rest_parts = []
+                while len(rest) > 0:
+                    rest_parts.insert(0, rest[-2:])
+                    rest = rest[:-2]
+                
+                # Stick it all back together with commas
+                result = ",".join(rest_parts) + "," + last_3
+                
+            final_result = f"{result}.{dec_part}"
+            
+            # Put the negative sign back if it was a loss
+            if is_negative:
+                return f"-{final_result}"
+            return final_result
+            
+        except (ValueError, TypeError):
+            return "0.00"

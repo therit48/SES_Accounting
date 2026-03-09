@@ -614,12 +614,16 @@ class PnLReportTab(QWidget):
                 tot = sum(data.get(lbl, {}).values())
                 if tot > 0:
                     add_row(lbl, is_bold=True, bg_color=LABEL_BG, text_color="#2980b9")
-                    for sub, amt in data.get(lbl, {}).items(): add_row(sub, f"{amt:,.2f}", indent=True)
-                    add_row(f"Total {lbl}", "", f"{tot:,.2f}", is_bold=True, bg_color="#f8f9f9")
+                    for sub, amt in data.get(lbl, {}).items(): 
+                        # Updated to Indian format
+                        add_row(sub, Utils.format_indian_currency(amt), indent=True)
+                    # Updated to Indian format
+                    add_row(f"Total {lbl}", "", Utils.format_indian_currency(tot), is_bold=True, bg_color="#f8f9f9")
             
             gp = tot_rev - tot_dir
             gp_lbl = "⭐ GROSS PROFIT" if gp >= 0 else "🔻 GROSS LOSS"
-            add_row(gp_lbl, "", f"{abs(gp):,.2f}", is_bold=True, bg_color="#d5f5e3" if gp>=0 else "#fadbd8", text_color="#1e8449" if gp>=0 else "#943126")
+            # Updated to Indian format
+            add_row(gp_lbl, "", Utils.format_indian_currency(abs(gp)), is_bold=True, bg_color="#d5f5e3" if gp>=0 else "#fadbd8", text_color="#1e8449" if gp>=0 else "#943126")
 
             tot_ind_rev = sum(data.get("INDIRECT REVENUE", {}).values())
             tot_ind_exp = sum(data.get("INDIRECT EXPENSES", {}).values())
@@ -628,24 +632,32 @@ class PnLReportTab(QWidget):
                 tot = sum(data.get(lbl, {}).values())
                 if tot > 0:
                     add_row(lbl, is_bold=True, bg_color=LABEL_BG, text_color="#2980b9")
-                    for sub, amt in data.get(lbl, {}).items(): add_row(sub, f"{amt:,.2f}", indent=True)
-                    add_row(f"Total {lbl}", "", f"{tot:,.2f}", is_bold=True, bg_color="#f8f9f9")
+                    for sub, amt in data.get(lbl, {}).items(): 
+                        # Updated to Indian format
+                        add_row(sub, Utils.format_indian_currency(amt), indent=True)
+                    # Updated to Indian format
+                    add_row(f"Total {lbl}", "", Utils.format_indian_currency(tot), is_bold=True, bg_color="#f8f9f9")
 
             np = gp + tot_ind_rev - tot_ind_exp
             np_lbl = "⭐⭐ NET PROFIT" if np >= 0 else "🔻🔻 NET LOSS"
-            add_row(np_lbl, "", f"{abs(np):,.2f}", is_bold=True, bg_color="#abebc6" if np>=0 else "#f5b7b1", text_color="#145a32" if np>=0 else "#78281f")
+            # Updated to Indian format
+            add_row(np_lbl, "", Utils.format_indian_currency(abs(np)), is_bold=True, bg_color="#abebc6" if np>=0 else "#f5b7b1", text_color="#145a32" if np>=0 else "#78281f")
 
             # --- THE CONDITIONAL PERSONAL LOGIC ---
             if include_personal:
                 tot_pers = sum(data.get("PERSONAL", {}).values())
                 if tot_pers > 0:
                     add_row("PERSONAL", is_bold=True, bg_color=LABEL_BG, text_color="#2980b9")
-                    for sub, amt in data.get("PERSONAL", {}).items(): add_row(sub, f"{amt:,.2f}", indent=True)
-                    add_row("Total PERSONAL", "", f"{tot_pers:,.2f}", is_bold=True, bg_color="#f8f9f9")
+                    for sub, amt in data.get("PERSONAL", {}).items(): 
+                        # Updated to Indian format
+                        add_row(sub, Utils.format_indian_currency(amt), indent=True)
+                    # Updated to Indian format
+                    add_row("Total PERSONAL", "", Utils.format_indian_currency(tot_pers), is_bold=True, bg_color="#f8f9f9")
 
                 fp = np - tot_pers
                 fp_lbl = "🏆 FINAL PROFIT" if fp >= 0 else "💔 FINAL LOSS"
-                add_row(fp_lbl, "", f"{abs(fp):,.2f}", is_bold=True, bg_color="#27ae60" if fp>=0 else "#c0392b", text_color="white")
+                # Updated to Indian format
+                add_row(fp_lbl, "", Utils.format_indian_currency(abs(fp)), is_bold=True, bg_color="#27ae60" if fp>=0 else "#c0392b", text_color="white")
 
         except Exception as e:
             QMessageBox.critical(self, "Report Error", f"An error occurred while calculating the P&L report:\n\n{str(e)}\n\nPlease ensure your dates are correct.")
