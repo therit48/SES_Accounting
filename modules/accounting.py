@@ -216,6 +216,10 @@ class VoucherTab(QWidget):
         self.db.execute_query("CREATE TABLE IF NOT EXISTS acc_vouchers (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_date TEXT, amount REAL, label TEXT, sub_account TEXT, fin_year TEXT)")
 
     def init_ui(self):
+        # --- NEW: Import Shortcuts locally ---
+        from PyQt5.QtWidgets import QShortcut
+        from PyQt5.QtGui import QKeySequence
+
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
@@ -234,7 +238,7 @@ class VoucherTab(QWidget):
         self.txt_date.setPlaceholderText("DD-MM-YYYY")
         self.txt_date.setStyleSheet(COMMON_INPUT_STYLE)
         
-        # 2. Sub Account Input (No more Label Input!)
+        # 2. Sub Account Input
         self.combo_sub = QComboBox()
         self.combo_sub.setEditable(True)
         self.combo_sub.setPlaceholderText("Search Sub Account...")
@@ -264,11 +268,10 @@ class VoucherTab(QWidget):
         grid.addWidget(QLabel("Amount (₹):"), 2, 0)
         grid.addWidget(self.txt_amount, 2, 1)
         
-        grid.addWidget(btn_save, 1, 4, 2, 1) # Span button across 2 rows on the right
+        grid.addWidget(btn_save, 1, 4, 2, 1) 
         
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        # We keep "Label" in the table so you can see what the system auto-detected!
         self.table.setHorizontalHeaderLabels(["ID", "Date", "Auto-Detected Label", "Sub Account", "Amount (₹)", "Action"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -279,9 +282,17 @@ class VoucherTab(QWidget):
         layout.addWidget(self.table)
         self.setLayout(layout)
 
+        # --- NEW: KEYBOARD SHORTCUTS FOR 'ENTER' ---
+        # Main Keyboard Enter key
+        self.shortcut_enter = QShortcut(QKeySequence("Return"), self)
+        self.shortcut_enter.activated.connect(self.save_voucher)
+        
+        # Numpad Enter key (Critical for accounting!)
+        self.shortcut_numpad = QShortcut(QKeySequence("Enter"), self)
+        self.shortcut_numpad.activated.connect(self.save_voucher)
+
     def load_dropdowns(self):
         self.combo_sub.clear()
-        # Fetch ALL Sub Accounts directly, regardless of parent Label
         rows = self.db.fetch_all("SELECT sub_account FROM acc_sub_accounts ORDER BY sub_account")
         subs = [r[0] for r in rows]
         self.combo_sub.addItems(subs)
@@ -314,11 +325,26 @@ class VoucherTab(QWidget):
             self.table.setCellWidget(r_idx, 5, btn_del)
 
     def save_voucher(self):
+        # --- NEW: INSTANT EMPTY FIELD CHECKS ---
+        d_str = self.txt_date.text().strip()
+        sub = self.combo_sub.currentText().strip().upper()
+        amt_str = self.txt_amount.text().strip()
+
+        # Check if fields are empty and put the cursor right where the error is
+        if not d_str:
+            self.txt_date.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please enter the Date.")
+        if not sub:
+            self.combo_sub.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please select a Sub Account.")
+        if not amt_str:
+            self.txt_amount.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please enter the Amount.")
+
         active_year = self.get_active_year()
         start_dt, end_dt = parse_fin_year(active_year)
         if not start_dt: return QMessageBox.warning(self, "Error", "No valid Financial Year selected.")
 
-        d_str = self.txt_date.text().strip()
         try:
             parts = d_str.replace('/','-').replace('.','-').split('-')
             y = int(parts[2])
@@ -326,42 +352,50 @@ class VoucherTab(QWidget):
             m = int(parts[1])
             d = int(parts[0])
             
-            # --- SMART CALENDAR CHECK ---
             try:
                 entry_dt = datetime(y, m, d).date()
             except ValueError:
-                return QMessageBox.warning(self, "Calendar Error", f"The date {d:02d}-{m:02d}-{y} does not exist!\n(Check the number of days in this month).")
+                self.txt_date.setFocus()
+                self.txt_date.selectAll()
+                return QMessageBox.warning(self, "Calendar Error", f"The date {d:02d}-{m:02d}-{y} does not exist!")
             
             if not (start_dt <= entry_dt <= end_dt):
+                self.txt_date.setFocus()
+                self.txt_date.selectAll()
                 return QMessageBox.warning(self, "Date Error", f"Date {d_str} not in active year ({active_year})!")
             
             clean_d = f"{d:02d}-{m:02d}-{y}"
             
-        except Exception as e: 
+        except Exception: 
+            self.txt_date.setFocus()
+            self.txt_date.selectAll()
             return QMessageBox.warning(self, "Error", "Invalid Date format. Please use DD-MM-YYYY.")
 
         try: 
-            amt = float(self.txt_amount.text())
+            amt = float(amt_str)
         except ValueError: 
-            return QMessageBox.warning(self, "Error", "Invalid Amount.")
+            self.txt_amount.setFocus()
+            self.txt_amount.selectAll()
+            return QMessageBox.warning(self, "Error", "Invalid Amount. Please enter a number.")
 
-        sub = self.combo_sub.currentText().strip().upper()
-        if not sub: 
-            return QMessageBox.warning(self, "Error", "Sub Account required.")
-
-        # --- AUTO-DETECT MAGIC ---
-        # Look up the predefined Label linked to this Sub Account
         lbl_row = self.db.fetch_all("SELECT label FROM acc_sub_accounts WHERE sub_account=?", (sub,))
         
         if not lbl_row:
+            self.combo_sub.setFocus()
             return QMessageBox.warning(self, "Error", f"Sub Account '{sub}' does not exist!\nPlease create it in the 'Sub Accounts' tab first.")
         
-        lbl = lbl_row[0][0] # Extracts the detected Label (e.g., 'REVENUE')
+        lbl = lbl_row[0][0] 
 
         self.db.execute_query("INSERT INTO acc_vouchers (entry_date, amount, label, sub_account, fin_year) VALUES (?, ?, ?, ?, ?)", (clean_d, amt, lbl, sub, active_year))
         
+        # --- NEW: RESET AND TELEPORT FOCUS ---
         self.txt_amount.clear()
-        self.txt_amount.setFocus() # Put cursor back to amount for quick entry
+        self.combo_sub.setCurrentText("") 
+        
+        # Teleport cursor back to the Date field!
+        self.txt_date.setFocus()
+        self.txt_date.selectAll() 
+        
         self.load_data()
 
     def delete_voucher(self, v_id):

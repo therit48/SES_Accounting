@@ -127,6 +127,10 @@ class ReceiptTab(QWidget):
         except: pass
 
     def init_ui(self):
+        # --- NEW: Import Shortcuts locally ---
+        from PyQt5.QtWidgets import QShortcut
+        from PyQt5.QtGui import QKeySequence
+
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
@@ -215,6 +219,13 @@ class ReceiptTab(QWidget):
         layout.addWidget(self.table)
         self.setLayout(layout)
 
+        # --- NEW: KEYBOARD SHORTCUTS FOR 'ENTER' ---
+        self.shortcut_enter = QShortcut(QKeySequence("Return"), self)
+        self.shortcut_enter.activated.connect(self.save_receipt)
+        
+        self.shortcut_numpad = QShortcut(QKeySequence("Enter"), self)
+        self.shortcut_numpad.activated.connect(self.save_receipt)
+
     def load_accounts(self):
         self.combo_account.clear()
         rows = self.db.fetch_all("SELECT party_code, party_name FROM accounts")
@@ -232,30 +243,60 @@ class ReceiptTab(QWidget):
         self.input_voucher.setText(str(max_id + 1))
 
     def save_receipt(self):
+        # --- NEW: INSTANT EMPTY FIELD CHECKS ---
         v_no = self.input_voucher.text()
-        date = self.date_picker.text()
-        acc_data = self.combo_account.currentData()
+        date = self.date_picker.text().strip()
+        acc_text = self.combo_account.currentText().strip()
+        amt_str = self.input_amount.text().strip()
         inv_no = self.input_inv_no.text()
-        
-        if not acc_data:
-            text = self.combo_account.currentText()
-            if "(" in text and ")" in text: acc_data = text.split("(")[-1].strip(")")
-        
-        if not acc_data: return QMessageBox.warning(self, "Error", "Please select a valid Account")
-
-        try: amt = float(self.input_amount.text())
-        except ValueError: return QMessageBox.warning(self, "Error", "Please enter a valid Amount")
-
         remark = self.input_remark.text()
+
+        if not date:
+            self.date_picker.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please enter the Date.")
+        
+        if not acc_text:
+            self.combo_account.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please select an Account.")
+            
+        if not amt_str:
+            self.input_amount.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please enter the Amount.")
+
+        acc_data = self.combo_account.currentData()
+        if not acc_data:
+            if "(" in acc_text and ")" in acc_text: 
+                acc_data = acc_text.split("(")[-1].strip(")")
+        
+        if not acc_data: 
+            self.combo_account.setFocus()
+            return QMessageBox.warning(self, "Error", "Please select a valid Account from the list.")
+
+        try: 
+            amt = float(amt_str)
+        except ValueError: 
+            self.input_amount.setFocus()
+            self.input_amount.selectAll()
+            return QMessageBox.warning(self, "Error", "Please enter a valid Amount.")
 
         if self.db.execute_query("INSERT INTO receipts (voucher_no, date, account_code, amount, remark, invoice_no) VALUES (?, ?, ?, ?, ?, ?)", 
                                  (v_no, date, acc_data, amt, remark, inv_no)):
+            
+            # --- NEW: RESET AND TELEPORT FOCUS ---
             self.input_amount.clear()
             self.input_remark.clear()
             self.input_inv_no.clear()
+            self.combo_account.setCurrentText("")
+            
             self.generate_voucher_no()
             self.load_recent_entries()
-        else: QMessageBox.critical(self, "Error", "Database Error")
+            
+            # Teleport cursor back to the Date field!
+            self.date_picker.setFocus()
+            self.date_picker.selectAll()
+            
+        else: 
+            QMessageBox.critical(self, "Error", "Database Error")
 
     def load_recent_entries(self):
         self.table.setRowCount(0)
@@ -321,6 +362,10 @@ class PaymentTab(QWidget):
         self.load_recent()
 
     def init_ui(self):
+        # --- NEW: Import Shortcuts locally ---
+        from PyQt5.QtWidgets import QShortcut
+        from PyQt5.QtGui import QKeySequence
+
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
@@ -426,6 +471,13 @@ class PaymentTab(QWidget):
         layout.addWidget(self.table)
         self.setLayout(layout)
 
+        # --- NEW: KEYBOARD SHORTCUTS FOR 'ENTER' ---
+        self.shortcut_enter = QShortcut(QKeySequence("Return"), self)
+        self.shortcut_enter.activated.connect(self.save_payment)
+        
+        self.shortcut_numpad = QShortcut(QKeySequence("Enter"), self)
+        self.shortcut_numpad.activated.connect(self.save_payment)
+
     def load_accounts(self):
         self.combo_account.clear()
         rows = self.db.fetch_all("SELECT party_code, party_name FROM accounts")
@@ -462,32 +514,59 @@ class PaymentTab(QWidget):
             return 0.0
 
     def save_payment(self):
+        # --- NEW: INSTANT EMPTY FIELD CHECKS ---
+        acc_text = self.combo_account.currentText().strip()
+        inv_no = self.input_inv_no.text().strip()
+        qty_str = self.input_qty.text().strip()
+        rate_str = self.input_rate.text().strip()
+        
+        if not acc_text:
+            self.combo_account.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please select an Account.")
+            
+        if not inv_no:
+            self.input_inv_no.setFocus()
+            return QMessageBox.warning(self, "Missing Data", "Please enter the Invoice Number.")
+            
+        if not qty_str or qty_str == "0":
+            self.input_qty.setFocus()
+            self.input_qty.selectAll()
+            return QMessageBox.warning(self, "Missing Data", "Please enter a valid Quantity.")
+            
+        if not rate_str or rate_str == "0.0":
+            self.input_rate.setFocus()
+            self.input_rate.selectAll()
+            return QMessageBox.warning(self, "Missing Data", "Please enter a valid Rate.")
+
         amt = self.calculate()
         acc_data = self.combo_account.currentData()
         
         if not acc_data:
-            text = self.combo_account.currentText()
-            if "(" in text: acc_data = text.split("(")[-1].strip(")")
+            if "(" in acc_text: acc_data = acc_text.split("(")[-1].strip(")")
 
-        if not acc_data: return QMessageBox.warning(self, "Error", "Select Account")
+        if not acc_data: 
+            self.combo_account.setFocus()
+            return QMessageBox.warning(self, "Error", "Select a valid Account from the list.")
             
-        inv_no = self.input_inv_no.text()
         inv_date = self.date_inv.text()
         pay_date = self.date_pay.text()
-        qty = self.input_qty.text()
-        rate = self.input_rate.text()
         grace = self.input_grace.text()
 
         query = """INSERT INTO payments 
                    (account_code, invoice_no, invoice_date, quantity, payment_date, rate, grace_day, interest_amt) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
         
-        if self.db.execute_query(query, (acc_data, inv_no, inv_date, qty, pay_date, rate, grace, amt)):
+        if self.db.execute_query(query, (acc_data, inv_no, inv_date, qty_str, pay_date, rate_str, grace, amt)):
+            # --- NEW: RESET AND TELEPORT FOCUS ---
             self.input_inv_no.clear()
             self.input_qty.setText("0")
             self.input_rate.setText("0.0")
+            
             self.load_recent()
             self.calculate() # Reset the label
+            
+            # Teleport cursor back to Invoice No for rapid multi-entry!
+            self.input_inv_no.setFocus()
 
     def load_recent(self):
         self.table.setRowCount(0)
